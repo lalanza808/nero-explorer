@@ -1,22 +1,24 @@
-use warp::Filter;
-use std::env;
+extern crate tokio;
+extern crate actix_web;
+extern crate awc;
 
-#[tokio::main]
-async fn main() {
-    let env_url = env::var("DAEMON_URI");
-    match env_url {
-        Ok(_) => {
-            let hello = warp::path("hello")
-                .and(warp::path::param())
-                .and(warp::header("user-agent"))
-                .map(|param: String, agent: String| {
-                    format!("Hello {}, whose agent is {}", param, agent)
-                });
+use actix_web::{get, web, App, HttpServer, Responder};
 
-            warp::serve(hello)
-                .run(([127, 0, 0, 1], 3030))
-                .await;
-        },
-        Err(_) => panic!("Environment variable `DAEMON_URI` not provided.")
-    }
+#[get("/hello/{name}")]
+async fn greet(name: web::Path<String>) -> impl Responder {
+    let client = awc::Client::default();
+    let req = client.get("http://node.suchwow.xyz:34568/get_info");
+    let mut res = req.send().await.unwrap();
+    format!("Hello {name}! Response: {:?}", res.body().await.unwrap())
+}
+
+#[actix_web::main]
+async fn main() -> std::io::Result<()> {
+    // let env_url = env::var("DAEMON_URI");
+    HttpServer::new(|| {
+        App::new().service(greet)
+    })
+    .bind(("127.0.0.1", 8080))?
+    .run()
+    .await
 }
